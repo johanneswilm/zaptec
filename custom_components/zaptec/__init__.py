@@ -13,8 +13,10 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .const import (
     CONF_CHARGERS,
+    CONF_CLIENT_ID,
     CONF_MANUAL_SELECT,
     CONF_PREFIX,
+    CONF_REFRESH_TOKEN,
     REDACT_DUMP_ON_STARTUP,
     REDACT_LOGS,
     ZAPTEC_POLL_INTERVAL_BUILD,
@@ -74,7 +76,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up zaptec as config entry."""
 
     redacted_data = {**entry.data}
-    for key in ("password", "username"):
+    for key in ("password", "username", "client_id", "refresh_token"):
         if key in redacted_data:
             redacted_data[key] = "********"
 
@@ -93,8 +95,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Create the Zaptec object
     zaptec = Zaptec(
-        entry.data[CONF_USERNAME],
-        entry.data[CONF_PASSWORD],
+        entry.data.get(CONF_USERNAME, ""),
+        entry.data.get(CONF_PASSWORD, ""),
+        client_id=entry.data.get(CONF_CLIENT_ID),
+        refresh_token=entry.data.get(CONF_REFRESH_TOKEN),
         client=async_get_clientsession(hass),
         max_time=ZAPTEC_POLL_INTERVAL_CHARGING,  # The shortest of the intervals
         show_all_updates=True,  # During setup we'd like to log all updates

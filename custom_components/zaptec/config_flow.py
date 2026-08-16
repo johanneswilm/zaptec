@@ -12,7 +12,14 @@ import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.selector import TextSelector, TextSelectorConfig, TextSelectorType
 import voluptuous as vol
 
-from .const import CONF_CHARGERS, CONF_MANUAL_SELECT, CONF_PREFIX, DOMAIN
+from .const import (
+    CONF_CHARGERS,
+    CONF_CLIENT_ID,
+    CONF_MANUAL_SELECT,
+    CONF_PREFIX,
+    CONF_REFRESH_TOKEN,
+    DOMAIN,
+)
 from .zaptec import (
     AuthenticationError,
     Charger,
@@ -44,7 +51,9 @@ class ZaptecFlowHandler(ConfigFlow, domain=DOMAIN):
         try:
             self.zaptec = Zaptec(
                 username=user_input[CONF_USERNAME],
-                password=user_input[CONF_PASSWORD],
+                password=user_input.get(CONF_PASSWORD, ""),
+                refresh_token=user_input.get(CONF_REFRESH_TOKEN),
+                client_id=user_input.get(CONF_CLIENT_ID),
                 client=async_get_clientsession(self.hass),
             )
             await self.zaptec.login()
@@ -160,10 +169,16 @@ class ZaptecFlowHandler(ConfigFlow, domain=DOMAIN):
                         autocomplete="email",
                     ),
                 ),
-                vol.Required(CONF_PASSWORD): TextSelector(
+                vol.Optional(CONF_PASSWORD, default=""): TextSelector(
                     TextSelectorConfig(
                         type=TextSelectorType.PASSWORD,
                         autocomplete="current-password",
+                    ),
+                ),
+                vol.Optional(CONF_CLIENT_ID, default=""): str,
+                vol.Optional(CONF_REFRESH_TOKEN, default=""): TextSelector(
+                    TextSelectorConfig(
+                        type=TextSelectorType.PASSWORD,
                     ),
                 ),
                 vol.Optional(CONF_PREFIX): str,
@@ -251,10 +266,16 @@ class ZaptecFlowHandler(ConfigFlow, domain=DOMAIN):
 
         schema = vol.Schema(
             {
-                vol.Required(CONF_PASSWORD): TextSelector(
+                vol.Optional(CONF_PASSWORD, default=""): TextSelector(
                     TextSelectorConfig(
                         type=TextSelectorType.PASSWORD,
                         autocomplete="current-password",
+                    ),
+                ),
+                vol.Optional(CONF_CLIENT_ID, default=""): str,
+                vol.Optional(CONF_REFRESH_TOKEN, default=""): TextSelector(
+                    TextSelectorConfig(
+                        type=TextSelectorType.PASSWORD,
                     ),
                 ),
             }

@@ -44,6 +44,8 @@ REQUEST_REFRESH_DELAY = 1
 CONF_MANUAL_SELECT = "manual_select"
 CONF_CHARGERS = "chargers"
 CONF_PREFIX = "prefix"
+CONF_CLIENT_ID = "client_id"
+CONF_REFRESH_TOKEN = "refresh_token"  # noqa: S105
 
 # These keys will not be checked at startup for entity availability. This is
 # useful for keys that are not always present in the API response, such as

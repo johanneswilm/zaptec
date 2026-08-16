@@ -31,10 +31,13 @@ from .const import (
     API_RETRY_MAXTIME,
     API_TIMEOUT,
     API_URL,
+    AUTH_URL,
     CHARGER_EXCLUDES,
     DEFAULT_MAX_CURRENT,
     MAX_DEBUG_TEXT_LEN_ON_500,
     MISSING,
+    OAUTH_CLIENT_ID,
+    OAUTH_SCOPE,
     RETRYABLE_HTTP_STATUSES,
     TOKEN_URL,
     TRUTHY,
@@ -818,6 +821,8 @@ class Zaptec(Mapping[str, ZaptecBase]):
         username: str,
         password: str,
         *,
+        client_id: str | None = None,
+        refresh_token: str | None = None,
         client: aiohttp.ClientSession | None = None,
         max_time: float = API_RETRY_MAXTIME,
         show_all_updates: bool = False,
@@ -826,6 +831,8 @@ class Zaptec(Mapping[str, ZaptecBase]):
         """Initialize the Zaptec account handler."""
         self._username = username
         self._password = password
+        self._client_id = client_id or OAUTH_CLIENT_ID
+        self._oauth_refresh_token = refresh_token
         self._client = client or aiohttp.ClientSession()
         self._client_internal = client is None
         self._token_info = {}
@@ -1109,6 +1116,67 @@ class Zaptec(Mapping[str, ZaptecBase]):
         await self._refresh_token()
 
     async def _refresh_token(self) -> None:
+        """Refresh the access token for the Zaptec API.
+
+        When an OAuth2 refresh token was supplied (accounts managed through the
+        new auth.zaptec.com identity provider), the token is renewed against the
+        OIDC token endpoint. Otherwise the legacy password grant is attempted.
+        """
+        if self._oauth_refresh_token:
+            await self._refresh_token_oauth()
+        else:
+            await self._refresh_token_legacy()
+
+    async def _refresh_token_oauth(self) -> None:
+        """Refresh the access token using an OAuth2 refresh token."""
+        p = {
+            "grant_type": "refresh_token",
+            "refresh_token": self._oauth_refresh_token,
+            "client_id": self._client_id,
+            "scope": OAUTH_SCOPE,
+        }
+        if DEBUG_API_CALLS:
+            _LOGGER.debug("@@@  REFRESH TOKEN (oauth)")
+
+        async with aclosing(
+            self._request_worker(
+                AUTH_URL,
+                method="post",
+                data=p,
+                retries=API_RETRIES,
+                timeout=self._timeout,
+            )
+        ) as ctx:
+            async for response, log_exc in ctx:
+                if response.status == HTTPStatus.OK:
+                    data = await response.json()
+                    self._token_info.update(data)
+                    self._access_token = data.get("access_token")
+                    # Rotate the stored refresh token if the provider returns one
+                    if data.get("refresh_token"):
+                        self._oauth_refresh_token = data["refresh_token"]
+                    if DEBUG_API_CALLS:
+                        _LOGGER.debug("     TOKEN OK (oauth)")
+                    return
+
+                if response.status == HTTPStatus.BAD_REQUEST:
+                    # invalid_grant means the token is expired/revoked and the
+                    # user needs to obtain a fresh one from the Zaptec portal.
+                    data = await response.json()
+                    raise log_exc(
+                        AuthenticationError(
+                            f"Failed to refresh OAuth token. {data.get('error_description', '')}"
+                        )
+                    )
+
+                raise log_exc(
+                    RequestError(
+                        f"POST request to {AUTH_URL} failed with status {response.status}: {response}",
+                        response.status,
+                    )
+                )
+
+    async def _refresh_token_legacy(self) -> None:
         # So for some reason they used grant_type password..
         # what the point with oauth then? Anyway this is valid for 24 hour
         p = {

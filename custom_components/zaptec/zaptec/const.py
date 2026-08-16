@@ -17,6 +17,16 @@ TOKEN_URL = "https://api.zaptec.com/oauth/token"  # noqa: S105
 API_URL = "https://api.zaptec.com/api/"
 CONST_URL = "https://api.zaptec.com/api/constants"
 
+# Zaptec has migrated account login to OAuth2 via auth.zaptec.com. The legacy
+# password grant at TOKEN_URL is no longer accepted for accounts registered on
+# the new identity provider. This integration therefore supports authenticating
+# with an OAuth2 refresh token obtained from the Zaptec web portal session
+# (grant_type=refresh_token against AUTH_URL), which mints access tokens that
+# the API accepts.
+AUTH_URL = "https://auth.zaptec.com/oauth2/token"
+OAUTH_SCOPE = "openid offline_access"
+OAUTH_CLIENT_ID = "97b4c92b-9032-44c2-bbfe-78ba3704cea7"  # Zaptec web portal public client
+
 API_RETRIES = 8  # Corresponds to median ~100 seconds of retries before giving up
 """Number of retries for API requests."""
 
