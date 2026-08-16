@@ -13,6 +13,7 @@ from homeassistant.helpers.debounce import Debouncer
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .const import (
+    CONF_REFRESH_TOKEN,
     DOMAIN,
     REQUEST_REFRESH_DELAY,
     ZAPTEC_POLL_CHARGER_TRIGGER_DELAYS,
@@ -120,6 +121,20 @@ class ZaptecUpdateCoordinator(DataUpdateCoordinator[None]):
         except ZaptecApiError as err:
             _LOGGER.exception("Fetching data failed")
             raise UpdateFailed(err) from err
+
+        # A poll may have refreshed (and thus rotated) the OAuth2 refresh
+        # token; persist the current one so it survives HA restarts.
+        self._persist_refresh_token()
+
+    def _persist_refresh_token(self) -> None:
+        """Persist the current OAuth2 refresh token to the config entry."""
+        new_token = self.zaptec.refresh_token
+        if new_token and new_token != self.config_entry.data.get(CONF_REFRESH_TOKEN):
+            self.hass.config_entries.async_update_entry(
+                self.config_entry,
+                data={**self.config_entry.data, CONF_REFRESH_TOKEN: new_token},
+            )
+            _LOGGER.debug("Persisted a new Zaptec refresh token")
 
     async def _trigger_poll(self, zaptec_obj: ZaptecBase) -> None:
         """Trigger a poll update sequence for the given object.

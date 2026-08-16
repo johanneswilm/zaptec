@@ -62,6 +62,22 @@ def _config_entry_error(
     return ConfigEntryError(str(err))
 
 
+def _persist_refresh_token(hass: HomeAssistant, entry: ConfigEntry, zaptec: Zaptec) -> None:
+    """Persist the current OAuth2 refresh token to the config entry.
+
+    The Zaptec OIDC provider (Ory) issues single-use rotating refresh tokens:
+    every refresh consumes the token and issues a new one. Persisting the
+    current token after each rotation keeps the integration working across
+    Home Assistant restarts without requiring re-auth.
+    """
+    new_token = zaptec.refresh_token
+    if new_token and new_token != entry.data.get(CONF_REFRESH_TOKEN):
+        hass.config_entries.async_update_entry(
+            entry, data={**entry.data, CONF_REFRESH_TOKEN: new_token}
+        )
+        _LOGGER.debug("Persisted a new Zaptec refresh token")
+
+
 PLATFORMS = [
     Platform.BINARY_SENSOR,
     Platform.BUTTON,
@@ -111,6 +127,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     except ZaptecApiError as err:
         _LOGGER.error("Zaptec login failed: %s", err)
         raise _config_entry_error(err) from err
+
+    # Login rotates the (single-use) refresh token; persist the new one now.
+    _persist_refresh_token(hass, entry, zaptec)
 
     # Get the structure of devices from Zaptec and determine the zaptec objects to track
     tracked_devices = await ZaptecManager.first_time_setup(

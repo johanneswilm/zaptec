@@ -853,6 +853,17 @@ class Zaptec(Mapping[str, ZaptecBase]):
         self.show_all_updates: bool = show_all_updates
         """Flag to indicate if all updates should be logged, even if no changes."""
 
+    @property
+    def refresh_token(self) -> str | None:
+        """Return the current (rotated) OAuth2 refresh token, if any.
+
+        Used to persist the latest refresh token so the integration keeps
+        working across restarts. The Zaptec OIDC provider (Ory) issues
+        single-use rotating refresh tokens, so the current one must be
+        saved back to the config entry after every rotation.
+        """
+        return self._oauth_refresh_token
+
     async def __aenter__(self) -> Self:
         """Enter the context manager."""
         return self

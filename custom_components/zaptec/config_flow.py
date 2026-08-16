@@ -57,6 +57,13 @@ class ZaptecFlowHandler(ConfigFlow, domain=DOMAIN):
                 client=async_get_clientsession(self.hass),
             )
             await self.zaptec.login()
+
+            # The Zaptec OIDC provider (Ory) issues single-use rotating refresh
+            # tokens: loging in consumes the supplied token and yields a new one.
+            # Record the rotated token so the config entry stores the current
+            # (still valid) token instead of the consumed one.
+            if self.zaptec.refresh_token:
+                user_input[CONF_REFRESH_TOKEN] = self.zaptec.refresh_token
         except (RequestConnectionError, RequestTimeoutError):
             errors["base"] = "cannot_connect"
         except AuthenticationError:
